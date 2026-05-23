@@ -12,3 +12,11 @@
 - [x] Patch base controller account resolution with safe fallback + persistence
 - [ ] Clear caches and re-test dashboard access
 - [ ] Run post-fix thorough UI/API verification
+
+# TODO - Production Issues: Send Speed + Click Tracking
+
+- [x] Locate send-speed implementation path (`SendController` + `ProcessCampaignQueueJob` + `WorkMailsQueueCommand`)
+- [x] Locate click-tracking path (`TracksEmailContent` + `TrackingController@click`)
+- [x] Fix send-speed behavior for low queue counts (e.g., 5 emails) and ensure rate limiting is honored
+- [x] Fix click tracking flow and ensure click rows are recorded + redirect works
+- [ ] Validate both fixes with focused production-safe checks
