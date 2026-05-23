@@ -27,13 +27,9 @@ class ProcessCampaignQueueJob implements ShouldQueue
     {
         $lockKey = "campaign_queue_worker_running_{$this->campaignId}";
 
+        // If already running, extend lock briefly and exit (existing worker will continue processing).
         if (!Cache::add($lockKey, 1, now()->addMinutes(10))) {
-            return;
-        }
-
-        // Prevent overlapping global queue workers from bypassing per-campaign throttling windows.
-        if (!Cache::add('campaign_queue_worker_global_lock', 1, now()->addMinutes(10))) {
-            Cache::forget($lockKey);
+            Cache::put($lockKey, 1, now()->addMinutes(10));
             return;
         }
 
@@ -48,7 +44,6 @@ class ProcessCampaignQueueJob implements ShouldQueue
 
             Artisan::call('queue:work-mails', $options);
         } finally {
-            Cache::forget('campaign_queue_worker_global_lock');
             Cache::forget($lockKey);
         }
     }

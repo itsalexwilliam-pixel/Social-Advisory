@@ -20,3 +20,4 @@
 - [x] Fix send-speed behavior for low queue counts (e.g., 5 emails) and ensure rate limiting is honored
 - [x] Fix click tracking flow and ensure click rows are recorded + redirect works
 - [ ] Validate both fixes with focused production-safe checks
+- [ ] Verify campaign with `emails_per_minute=5` continues processing after first send (no stall) on production worker
