@@ -121,6 +121,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/smtp',                         [SMTPController::class, 'index'])->name('smtp.index');
         Route::get('/smtp-health',                  [SMTPController::class, 'health'])->name('smtp.health');
         Route::post('/smtp',                        [SMTPController::class, 'store'])->name('smtp.store');
+        Route::delete('/smtp',                      [SMTPController::class, 'destroyAll'])->name('smtp.destroy-all');
         Route::get('/smtp/{smtp}/edit',             [SMTPController::class, 'edit'])->name('smtp.edit');
         Route::put('/smtp/{smtp}',                  [SMTPController::class, 'update'])->name('smtp.update');
         Route::delete('/smtp/{smtp}',               [SMTPController::class, 'destroy'])->name('smtp.destroy');

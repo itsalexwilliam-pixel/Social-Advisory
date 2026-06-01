@@ -126,6 +126,20 @@ class SMTPController extends Controller
         return redirect()->route('smtp.index')->with('success', 'SMTP server deleted.');
     }
 
+    public function destroyAll(Request $request): RedirectResponse
+    {
+        $accountId = $this->getAccountId($request);
+
+        $deleted = SmtpServer::forAccount($accountId)->delete();
+
+        return redirect()->route('smtp.index')->with(
+            'success',
+            $deleted > 0
+                ? "Deleted {$deleted} SMTP server(s)."
+                : 'No SMTP servers found to delete.'
+        );
+    }
+
     public function testConnection(Request $request, SmtpServer $smtp): RedirectResponse
     {
         $this->guardAccountAccess($request, $smtp);

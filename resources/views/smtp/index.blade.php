@@ -33,8 +33,17 @@
     @endif
 
     <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-4 gap-3">
             <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Add SMTP Server</h2>
+
+            <form method="POST" action="{{ route('smtp.destroy-all') }}"
+                  onsubmit="return confirm('Delete ALL SMTP servers for this account? This action cannot be undone.')">
+                @csrf
+                @method('DELETE')
+                <button class="inline-flex items-center px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition">
+                    Delete All SMTP
+                </button>
+            </form>
         </div>
 
         <form method="POST" action="{{ route('smtp.store') }}" class="space-y-4">
