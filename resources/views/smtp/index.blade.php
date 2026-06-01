@@ -4,15 +4,16 @@
 
 @section('content')
 @php
-    $totalServers = $servers->total();
-    $activeServers = $servers->where('is_active', 1)->count();
+    $totalServers = $totalServers ?? $servers->total();
+    $activeServers = $activeServers ?? $servers->where('is_active', 1)->count();
+    $inactiveServers = $inactiveServers ?? max($totalServers - $activeServers, 0);
 @endphp
 
 <div class="space-y-6">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <x-saas-stat-card title="Total Servers" :value="$totalServers" />
         <x-saas-stat-card title="Active" :value="$activeServers" />
-        <x-saas-stat-card title="Inactive" :value="max($totalServers - $activeServers, 0)" />
+        <x-saas-stat-card title="Inactive" :value="$inactiveServers" />
     </div>
 
     @if(session('success'))

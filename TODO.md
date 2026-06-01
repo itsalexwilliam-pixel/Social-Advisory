@@ -35,3 +35,12 @@
 - [x] Implement strict rotation pointer so sends go smtp1 -> smtp2 -> ... -> smtp1
 - [x] Ensure fallback on SMTP failure still works without breaking rotation
 - [x] Run syntax checks after update
+
+# TODO - SMTP Upload Validation + Auto-Inactive Dead SMTP
+
+- [ ] Inspect SMTP index counters and fix account-wide stat calculation (not paginated subset)
+- [ ] Implement bulk-upload SMTP connection test before saving each row
+- [ ] Implement auto-inactive on SMTP failure (test/send/bulk validation flows)
+- [ ] Add optional batch recheck command to deactivate dead active SMTPs
+- [ ] Update/add feature tests for new SMTP behavior
+- [ ] Run critical-path test execution and report results

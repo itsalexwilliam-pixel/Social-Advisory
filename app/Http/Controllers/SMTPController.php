@@ -18,11 +18,16 @@ class SMTPController extends Controller
     {
         $accountId = $this->getAccountId($request);
 
-        $servers = SmtpServer::forAccount($accountId)
+        $baseQuery = SmtpServer::forAccount($accountId);
+        $servers = (clone $baseQuery)
             ->latest()
             ->paginate(10);
 
-        return view('smtp.index', compact('servers'));
+        $totalServers = (clone $baseQuery)->count();
+        $activeServers = (clone $baseQuery)->where('is_active', true)->count();
+        $inactiveServers = max($totalServers - $activeServers, 0);
+
+        return view('smtp.index', compact('servers', 'totalServers', 'activeServers', 'inactiveServers'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -145,21 +150,15 @@ class SMTPController extends Controller
         $this->guardAccountAccess($request, $smtp);
 
         try {
-            $this->applySmtpConfig($smtp);
+            $this->sendProbeEmail($smtp);
 
-            Mail::raw('SMTP connection test successful.', function ($message) use ($smtp) {
-                $message->to($smtp->from_email)
-                    ->subject('SMTP Connection Test');
-            });
+            if (! $smtp->is_active) {
+                $smtp->update(['is_active' => true]);
+            }
 
             return back()->with('success', "SMTP test successful for {$smtp->name}.");
         } catch (\Throwable $e) {
-            Log::warning('SMTP test failed', [
-                'smtp_id' => $smtp->id,
-                'account_id' => $smtp->account_id,
-                'error_type' => class_basename($e),
-                'error' => $e->getMessage(),
-            ]);
+            $this->markSmtpInactiveOnFailure($smtp, $e, 'SMTP test failed');
 
             return back()->withErrors([
                 'smtp_test' => "SMTP test failed for {$smtp->name}: " . $e->getMessage(),
@@ -184,14 +183,13 @@ class SMTPController extends Controller
                     ->from($smtp->from_email, $smtp->from_name);
             });
 
+            if (! $smtp->is_active) {
+                $smtp->update(['is_active' => true]);
+            }
+
             return back()->with('success', "Test email sent successfully via {$smtp->name}.");
         } catch (\Throwable $e) {
-            Log::warning('SMTP send test email failed', [
-                'smtp_id' => $smtp->id,
-                'account_id' => $smtp->account_id,
-                'error_type' => class_basename($e),
-                'error' => $e->getMessage(),
-            ]);
+            $this->markSmtpInactiveOnFailure($smtp, $e, 'SMTP send test email failed');
 
             return back()->withErrors([
                 'smtp_test_email' => "Failed to send test email via {$smtp->name}: " . $e->getMessage(),
@@ -297,6 +295,16 @@ class SMTPController extends Controller
                 continue;
             }
 
+            try {
+                $this->sendProbeEmailFromPayload($payload);
+            } catch (\Throwable $e) {
+                $failedRows[] = [
+                    'row' => $rowNumber,
+                    'reason' => 'SMTP connection failed during upload: ' . $e->getMessage(),
+                ];
+                continue;
+            }
+
             SmtpServer::create([
                 'account_id' => $accountId,
                 'name' => $payload['name'],
@@ -392,6 +400,53 @@ class SMTPController extends Controller
             'mail.mailers.smtp.timeout' => 8,
             'mail.from.address' => $smtp->from_email,
             'mail.from.name' => $smtp->from_name,
+        ]);
+    }
+
+    private function sendProbeEmail(SmtpServer $smtp): void
+    {
+        $this->applySmtpConfig($smtp);
+
+        Mail::raw('SMTP connection test successful.', function ($message) use ($smtp) {
+            $message->to($smtp->from_email)
+                ->subject('SMTP Connection Test')
+                ->from($smtp->from_email, $smtp->from_name);
+        });
+    }
+
+    private function sendProbeEmailFromPayload(array $payload): void
+    {
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => $payload['host'],
+            'mail.mailers.smtp.port' => $payload['port'],
+            'mail.mailers.smtp.username' => $payload['username'],
+            'mail.mailers.smtp.password' => $payload['password'],
+            'mail.mailers.smtp.encryption' => $payload['encryption'] === 'none' ? null : $payload['encryption'],
+            'mail.mailers.smtp.timeout' => 8,
+            'mail.from.address' => $payload['from_email'],
+            'mail.from.name' => $payload['from_name'],
+        ]);
+
+        Mail::raw('SMTP connection test successful.', function ($message) use ($payload) {
+            $message->to($payload['from_email'])
+                ->subject('SMTP Connection Test')
+                ->from($payload['from_email'], $payload['from_name']);
+        });
+    }
+
+    private function markSmtpInactiveOnFailure(SmtpServer $smtp, \Throwable $e, string $logPrefix): void
+    {
+        if ($smtp->is_active) {
+            $smtp->update(['is_active' => false]);
+        }
+
+        Log::warning($logPrefix, [
+            'smtp_id' => $smtp->id,
+            'account_id' => $smtp->account_id,
+            'error_type' => class_basename($e),
+            'error' => $e->getMessage(),
+            'marked_inactive' => true,
         ]);
     }
 }

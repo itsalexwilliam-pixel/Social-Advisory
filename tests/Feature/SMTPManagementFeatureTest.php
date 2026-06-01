@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class SMTPManagementFeatureTest extends TestCase
@@ -145,6 +146,8 @@ class SMTPManagementFeatureTest extends TestCase
 
     public function test_bulk_upload_inserts_valid_rows_and_skips_invalid_rows(): void
     {
+        Mail::fake();
+
         [$account, $user] = $this->createAccountWithUser();
 
         SmtpServer::create([
@@ -190,6 +193,8 @@ class SMTPManagementFeatureTest extends TestCase
 
     public function test_bulk_upload_accepts_name_header_with_utf8_bom(): void
     {
+        Mail::fake();
+
         [$account, $user] = $this->createAccountWithUser('bom@example.com');
 
         $bom = "\xEF\xBB\xBF";
