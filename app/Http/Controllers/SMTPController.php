@@ -206,8 +206,12 @@ class SMTPController extends Controller
             return back()->withErrors(['smtp_csv' => 'CSV file is empty.']);
         }
 
-        $requiredHeaders = ['label', 'host', 'port', 'username', 'password', 'encryption', 'from_email', 'from_name'];
-        $normalizedHeaders = array_map(fn ($h) => strtolower(trim((string) $h)), $headers);
+        $requiredHeaders = ['host', 'port', 'username', 'password', 'encryption', 'from_email', 'from_name'];
+        $normalizedHeaders = array_map(function ($h) {
+            $header = strtolower(trim((string) $h));
+            $header = preg_replace('/^\xEF\xBB\xBF/', '', $header);
+            return $header;
+        }, $headers);
 
         foreach ($requiredHeaders as $requiredHeader) {
             if (! in_array($requiredHeader, $normalizedHeaders, true)) {
@@ -216,7 +220,16 @@ class SMTPController extends Controller
             }
         }
 
+        $hasLabelHeader = in_array('label', $normalizedHeaders, true);
+        $hasNameHeader = in_array('name', $normalizedHeaders, true);
+
+        if (! $hasLabelHeader && ! $hasNameHeader) {
+            fclose($handle);
+            return back()->withErrors(['smtp_csv' => 'Missing required CSV header: label or name']);
+        }
+
         $headerMap = array_flip($normalizedHeaders);
+        $nameHeaderKey = $hasLabelHeader ? 'label' : 'name';
 
         $successCount = 0;
         $failedRows = [];
@@ -226,7 +239,7 @@ class SMTPController extends Controller
             $rowNumber++;
 
             $payload = [
-                'name' => trim((string) ($row[$headerMap['label']] ?? '')),
+                'name' => trim((string) ($row[$headerMap[$nameHeaderKey]] ?? '')),
                 'host' => trim((string) ($row[$headerMap['host']] ?? '')),
                 'port' => (int) trim((string) ($row[$headerMap['port']] ?? '0')),
                 'username' => trim((string) ($row[$headerMap['username']] ?? '')),

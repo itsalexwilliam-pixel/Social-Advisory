@@ -293,7 +293,6 @@ class WorkMailsQueueCommand extends Command
         $smtpServers = SmtpServer::forAccount($accountId)
             ->active()
             ->orderBy('priority')
-            ->orderBy('last_used_at')
             ->orderBy('id')
             ->get();
 
@@ -306,7 +305,24 @@ class WorkMailsQueueCommand extends Command
         $lastError = null;
         $today = Carbon::today()->toDateString();
 
-        foreach ($smtpServers as $smtp) {
+        $smtpServerCount = $smtpServers->count();
+        $lastUsedSmtpId = SmtpServer::forAccount($accountId)
+            ->whereNotNull('last_used_at')
+            ->orderByDesc('last_used_at')
+            ->orderByDesc('id')
+            ->value('id');
+
+        $startIndex = 0;
+        if (!is_null($lastUsedSmtpId)) {
+            $lastIndex = $smtpServers->search(fn (SmtpServer $server) => (int) $server->id === (int) $lastUsedSmtpId);
+            if ($lastIndex !== false) {
+                $startIndex = ((int) $lastIndex + 1) % $smtpServerCount;
+            }
+        }
+
+        $orderedSmtpServers = $smtpServers->slice($startIndex)->concat($smtpServers->slice(0, $startIndex));
+
+        foreach ($orderedSmtpServers as $smtp) {
             if (!is_null($smtp->daily_limit)) {
                 $todaySentCount = SmtpServerUsage::query()
                     ->where('smtp_server_id', $smtp->id)

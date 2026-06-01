@@ -188,6 +188,36 @@ class SMTPManagementFeatureTest extends TestCase
         ]);
     }
 
+    public function test_bulk_upload_accepts_name_header_with_utf8_bom(): void
+    {
+        [$account, $user] = $this->createAccountWithUser('bom@example.com');
+
+        $bom = "\xEF\xBB\xBF";
+        $csv = implode("\n", [
+            $bom . 'name,host,port,username,password,encryption,from_email,from_name,reply_to_email,reply_to_name',
+            'Aaron Lewis,mail.proadvisorservicesupdate.com,587,aaron.lewis@proadvisorservicesupdate.com,Opetron11#$,tls,aaron.lewis@proadvisorservicesupdate.com,Aaron Lewis,info@proadvisorservicesupdate.com,Aaron Lewis',
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('smtp-bom.csv', $csv);
+
+        $response = $this->actingAs($user)
+            ->post(route('smtp.bulk-upload'), [
+                'smtp_csv' => $file,
+            ]);
+
+        $response->assertRedirect(route('smtp.index'));
+        $response->assertSessionHas('smtp_bulk_success_count', 1);
+
+        $this->assertDatabaseHas('smtp_servers', [
+            'account_id' => $account->id,
+            'name' => 'Aaron Lewis',
+            'host' => 'mail.proadvisorservicesupdate.com',
+            'username' => 'aaron.lewis@proadvisorservicesupdate.com',
+            'from_email' => 'aaron.lewis@proadvisorservicesupdate.com',
+            'from_name' => 'Aaron Lewis',
+        ]);
+    }
+
     public function test_password_is_stored_encrypted_in_database(): void
     {
         [$account, $user] = $this->createAccountWithUser();
