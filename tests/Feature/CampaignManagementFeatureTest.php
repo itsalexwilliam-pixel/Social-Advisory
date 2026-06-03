@@ -29,6 +29,7 @@ class CampaignManagementFeatureTest extends TestCase
 
         $this->user = User::factory()->create([
             'account_id' => $this->account->id,
+            'role' => 'admin',
         ]);
 
         $this->actingAs($this->user);
@@ -61,7 +62,7 @@ class CampaignManagementFeatureTest extends TestCase
         $groupContact = Contact::create(['account_id' => $this->account->id, 'name' => 'Grouped', 'email' => 'grouped@example.com']);
         $overlap = Contact::create(['account_id' => $this->account->id, 'name' => 'Overlap', 'email' => 'overlap@example.com']);
 
-        $group = Group::create(['account_id' => $this->account->id, 'name' => 'Leads']);
+        $group = Group::create(['account_id' => $this->account->id, 'name' => 'Leads', 'description' => null]);
         $group->contacts()->sync([$groupContact->id, $overlap->id]);
 
         $response = $this->post(route('campaigns.store'), [

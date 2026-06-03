@@ -99,7 +99,7 @@ php artisan key:generate
 # 4. Configure your database in .env
 # DB_CONNECTION=mysql
 # DB_HOST=127.0.0.1
-# DB_DATABASE=social-security-administration_mailer
+# DB_DATABASE=novelio_mailer
 # DB_USERNAME=root
 # DB_PASSWORD=
 
@@ -122,9 +122,9 @@ Open **http://127.0.0.1:8000** and log in.
 php artisan queue:work
 
 # Production (using included supervisor.conf)
-sudo cp supervisor.conf /etc/supervisor/conf.d/social-security-administration-worker.conf
+sudo cp supervisor.conf /etc/supervisor/conf.d/novelio-worker.conf
 sudo supervisorctl reread && sudo supervisorctl update
-sudo supervisorctl start social-security-administration-worker:*
+sudo supervisorctl start novelio-worker:*
 ```
 
 ---
@@ -140,7 +140,7 @@ APP_DEBUG=false
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
-DB_DATABASE=social-security-administration_mailer
+DB_DATABASE=novelio_mailer
 DB_USERNAME=dbuser
 DB_PASSWORD=dbpassword
 

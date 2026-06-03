@@ -21,6 +21,7 @@ trait TracksEmailContent
         if ($includeUnsubscribe && !empty($unsubscribeEmail)) {
             $unsubscribeUrl = route('unsubscribe', ['email' => rawurlencode($unsubscribeEmail)]);
             $appName = config('app.name', 'Social Security Administration');
+            $companyAddress = '6401 Security Blvd, Baltimore, MD 21235, United States';
 
             $unsubscribeHtml = '
 <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e5e7eb;text-align:center;font-family:Arial,Helvetica,sans-serif;">
@@ -34,7 +35,7 @@ trait TracksEmailContent
            style="color:#6366f1;text-decoration:underline;font-weight:600;">unsubscribe here</a>.
     </p>
     <p style="margin:0;font-size:11px;color:#d1d5db;">
-        &copy; ' . date('Y') . ' ' . e($appName) . '. All rights reserved.
+        &copy; ' . date('Y') . ' ' . e($appName) . '<br>' . e($companyAddress) . '
     </p>
 </div>';
 

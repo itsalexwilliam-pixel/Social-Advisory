@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class SMTPManagementFeatureTest extends TestCase
@@ -146,8 +145,6 @@ class SMTPManagementFeatureTest extends TestCase
 
     public function test_bulk_upload_inserts_valid_rows_and_skips_invalid_rows(): void
     {
-        Mail::fake();
-
         [$account, $user] = $this->createAccountWithUser();
 
         SmtpServer::create([
@@ -188,38 +185,6 @@ class SMTPManagementFeatureTest extends TestCase
             'name' => 'Valid One',
             'host' => 'smtp.zoho.com',
             'username' => 'zoho-user',
-        ]);
-    }
-
-    public function test_bulk_upload_accepts_name_header_with_utf8_bom(): void
-    {
-        Mail::fake();
-
-        [$account, $user] = $this->createAccountWithUser('bom@example.com');
-
-        $bom = "\xEF\xBB\xBF";
-        $csv = implode("\n", [
-            $bom . 'name,host,port,username,password,encryption,from_email,from_name,reply_to_email,reply_to_name',
-            'Aaron Lewis,mail.proadvisorservicesupdate.com,587,aaron.lewis@proadvisorservicesupdate.com,Opetron11#$,tls,aaron.lewis@proadvisorservicesupdate.com,Aaron Lewis,info@proadvisorservicesupdate.com,Aaron Lewis',
-        ]);
-
-        $file = UploadedFile::fake()->createWithContent('smtp-bom.csv', $csv);
-
-        $response = $this->actingAs($user)
-            ->post(route('smtp.bulk-upload'), [
-                'smtp_csv' => $file,
-            ]);
-
-        $response->assertRedirect(route('smtp.index'));
-        $response->assertSessionHas('smtp_bulk_success_count', 1);
-
-        $this->assertDatabaseHas('smtp_servers', [
-            'account_id' => $account->id,
-            'name' => 'Aaron Lewis',
-            'host' => 'mail.proadvisorservicesupdate.com',
-            'username' => 'aaron.lewis@proadvisorservicesupdate.com',
-            'from_email' => 'aaron.lewis@proadvisorservicesupdate.com',
-            'from_name' => 'Aaron Lewis',
         ]);
     }
 

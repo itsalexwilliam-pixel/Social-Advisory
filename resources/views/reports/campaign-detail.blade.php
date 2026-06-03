@@ -29,7 +29,12 @@
                     ">{{ ucfirst($campaign->status) }}</span>
                 </p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('reports.export', ['type' => 'campaign-detail', 'campaign_id' => $campaign->id]) }}"
+                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-sm font-medium transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Export CSV
+                </a>
                 <a href="{{ route('campaigns.edit', $campaign) }}"
                    class="inline-flex items-center px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition">
                     Edit Campaign
@@ -147,16 +152,26 @@
                 <thead>
                     <tr class="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                         <th class="py-2 pr-3">Email</th>
+                        <th class="py-2 pr-3">SMTP Used</th>
                         <th class="py-2 pr-3">Sent At</th>
                         <th class="py-2 pr-3 text-center">Opened</th>
                         <th class="py-2 pr-3 text-center">Clicked</th>
                         <th class="py-2 pr-3 text-center">Unsubscribed</th>
+                        <th class="py-2 pr-3 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($recipients as $row)
                         <tr class="border-b border-slate-100 dark:border-slate-800/70">
                             <td class="py-2 pr-3 text-slate-700 dark:text-slate-200">{{ $row->email }}</td>
+                            <td class="py-2 pr-3">
+                                @if($row->smtp_name)
+                                    <span class="font-medium text-indigo-700 dark:text-indigo-300">{{ $row->smtp_name }}</span>
+                                    <span class="text-xs text-slate-400 dark:text-slate-500 block">{{ $row->smtp_host }}</span>
+                                @else
+                                    <span class="text-slate-400">—</span>
+                                @endif
+                            </td>
                             <td class="py-2 pr-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                 {{ optional($row->sent_at)->format('Y-m-d H:i') ?? '—' }}
                             </td>
@@ -181,10 +196,18 @@
                                     <span class="text-slate-300 dark:text-slate-600">—</span>
                                 @endif
                             </td>
+                            <td class="py-2 pr-3 text-right">
+                                <button type="button"
+                                        class="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                                        data-preview-url="{{ route('reports.email.show', ['id' => $row->id]) }}"
+                                        data-preview-trigger="true">
+                                    👁 View
+                                </button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-8 text-center text-slate-500">No sent recipients found.</td>
+                            <td colspan="7" class="py-8 text-center text-slate-500">No sent recipients found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -204,6 +227,7 @@
                 <thead>
                     <tr class="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                         <th class="py-2 pr-3">Email</th>
+                        <th class="py-2 pr-3">SMTP Used</th>
                         <th class="py-2 pr-3">Last Attempted</th>
                         <th class="py-2 pr-3">Error</th>
                     </tr>
@@ -212,6 +236,14 @@
                     @foreach($failedEmails as $row)
                         <tr class="border-b border-slate-100 dark:border-slate-800/70">
                             <td class="py-2 pr-3 text-slate-700 dark:text-slate-200">{{ $row->email }}</td>
+                            <td class="py-2 pr-3">
+                                @if($row->smtp_name)
+                                    <span class="font-medium text-indigo-700 dark:text-indigo-300">{{ $row->smtp_name }}</span>
+                                    <span class="text-xs text-slate-400 dark:text-slate-500 block">{{ $row->smtp_host }}</span>
+                                @else
+                                    <span class="text-slate-400">—</span>
+                                @endif
+                            </td>
                             <td class="py-2 pr-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                 {{ optional($row->updated_at)->format('Y-m-d H:i') }}
                             </td>
@@ -227,4 +259,83 @@
     @endif
 
 </div>
+
+<div id="emailPreviewModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-[95%] max-w-5xl max-h-[90vh] overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <h3 class="font-semibold text-slate-900 dark:text-slate-100">Sent Email Preview</h3>
+            <button type="button" id="closeEmailPreviewBtn" class="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">✕</button>
+        </div>
+        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-300" id="emailPreviewMeta"></div>
+        <div class="p-4 max-h-[70vh] overflow-auto">
+            <iframe id="emailPreviewFrame" class="w-full h-[62vh] border border-slate-200 dark:border-slate-700 rounded-md"></iframe>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const previewModal = document.getElementById('emailPreviewModal');
+    const previewFrame = document.getElementById('emailPreviewFrame');
+    const closePreviewBtn = document.getElementById('closeEmailPreviewBtn');
+    const previewMeta = document.getElementById('emailPreviewMeta');
+    const previewButtons = document.querySelectorAll('[data-preview-trigger="true"]');
+
+    function closePreview() {
+        previewModal?.classList.add('hidden');
+        previewModal?.classList.remove('flex');
+    }
+
+    closePreviewBtn?.addEventListener('click', closePreview);
+    previewModal?.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+            closePreview();
+        }
+    });
+
+    previewButtons.forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const url = btn.getAttribute('data-preview-url');
+            if (!url) return;
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Unable to load email preview.');
+                }
+
+                const payload = await response.json();
+                const html = payload.body_snapshot || '';
+                const doc = previewFrame?.contentWindow?.document;
+
+                if (doc) {
+                    doc.open();
+                    doc.write(html);
+                    doc.close();
+                }
+
+                if (previewMeta) {
+                    previewMeta.textContent =
+                        `To: ${payload.to || '-'} | From: ${payload.from_name || '-'} <${payload.from_email || '-'}> | Subject: ${payload.subject || '-'} | Type: ${payload.type || '-'} | Status: ${payload.status || '-'}`;
+                }
+
+                previewModal?.classList.remove('hidden');
+                previewModal?.classList.add('flex');
+            } catch (error) {
+                if (previewMeta) {
+                    previewMeta.textContent = 'Failed to load preview.';
+                }
+            }
+        });
+    });
+})();
+</script>
+@endpush

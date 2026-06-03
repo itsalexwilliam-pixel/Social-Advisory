@@ -127,6 +127,11 @@
                                         </button>
                                     </form>
 
+                                    <a href="{{ route('reports.campaign.detail', $campaign->id) }}"
+                                       class="px-3 py-1.5 rounded-lg bg-sky-100 text-sky-700 text-xs font-medium hover:bg-sky-200 transition"
+                                       title="Preview campaign report">
+                                        👁 View
+                                    </a>
                                     <a href="{{ route('campaigns.edit', $campaign) }}"
                                        class="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-medium hover:bg-indigo-200 transition">
                                         Edit

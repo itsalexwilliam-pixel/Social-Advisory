@@ -15,6 +15,18 @@
                class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium bg-indigo-600 text-white border border-indigo-600">
                 Campaign Report
             </a>
+            <a href="{{ route('reports.warmup') }}"
+               class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                Warmup Report
+            </a>
+            <a href="{{ route('reports.smtp') }}"
+               class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                SMTP Report
+            </a>
+            <a href="{{ route('reports.live-logs') }}"
+               class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                Live Logs
+            </a>
         </div>
     </div>
 
@@ -56,6 +68,10 @@
                 </button>
                 <a href="{{ route('reports.index') }}" class="flex-1 inline-flex justify-center items-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm px-4 py-2">
                     Reset
+                </a>
+                <a href="{{ route('reports.export', array_filter(['type' => 'campaign', 'date_range' => $filters['date_range'] ?? '30d', 'from' => $filters['from'] ?? null, 'to' => $filters['to'] ?? null, 'campaign_id' => $filters['campaign_id'] ?? null])) }}"
+                   class="flex-1 inline-flex justify-center items-center rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30 text-sm px-4 py-2">
+                    Export CSV
                 </a>
             </div>
         </div>

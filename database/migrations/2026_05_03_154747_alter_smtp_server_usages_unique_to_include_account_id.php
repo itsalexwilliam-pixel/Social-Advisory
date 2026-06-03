@@ -12,11 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('smtp_server_usages', function (Blueprint $table) {
+            // Drop FK first so MySQL lets us drop the index it depends on
+            $table->dropForeign(['smtp_server_id']);
             $table->dropUnique('smtp_server_usages_unique_server_date');
             $table->unique(
                 ['smtp_server_id', 'account_id', 'usage_date'],
                 'smtp_server_usages_unique_server_account_date'
             );
+            // Re-add FK (backed by the new unique index)
+            $table->foreign('smtp_server_id')->references('id')->on('smtp_servers')->onDelete('cascade');
         });
     }
 
@@ -26,8 +30,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('smtp_server_usages', function (Blueprint $table) {
+            $table->dropForeign(['smtp_server_id']);
             $table->dropUnique('smtp_server_usages_unique_server_account_date');
             $table->unique(['smtp_server_id', 'usage_date'], 'smtp_server_usages_unique_server_date');
+            $table->foreign('smtp_server_id')->references('id')->on('smtp_servers')->onDelete('cascade');
         });
     }
 };

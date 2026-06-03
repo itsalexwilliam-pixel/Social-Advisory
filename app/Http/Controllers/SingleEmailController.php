@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\SingleEmailMail;
+use App\Models\Contact;
 use App\Models\EmailQueue;
 use App\Models\SmtpServer;
 use App\Models\SmtpServerUsage;
@@ -107,10 +108,14 @@ class SingleEmailController extends Controller
             ? $rawMessage
             : EmailHtmlPreprocessor::preprocess($rawMessage);
 
+        $recipientContact = Contact::where('account_id', $accountId)
+            ->whereRaw('LOWER(email) = ?', [strtolower($data['to'])])
+            ->first();
+
         $queueItem = EmailQueue::create([
             'account_id' => $accountId,
             'campaign_id' => null,
-            'contact_id' => null,
+            'contact_id' => $recipientContact?->id,
             'smtp_server_id' => $smtp->id,
             'email' => $data['to'],
             'type' => 'single',

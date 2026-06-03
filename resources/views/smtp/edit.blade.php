@@ -101,6 +101,18 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Reply-To Name (optional)</label>
+                    <input type="text" name="reply_to_name" value="{{ old('reply_to_name', $server->reply_to_name) }}" class="w-full rounded-xl border @error('reply_to_name') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
+                    @error('reply_to_name')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Reply-To Email (optional)</label>
+                    <input type="email" name="reply_to_email" value="{{ old('reply_to_email', $server->reply_to_email) }}" class="w-full rounded-xl border @error('reply_to_email') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
+                    @error('reply_to_email')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
                     <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Daily Limit (optional)</label>
                     <input type="number" name="daily_limit" min="1" value="{{ old('daily_limit', $server->daily_limit) }}" class="w-full rounded-xl border @error('daily_limit') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
                     @error('daily_limit')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror

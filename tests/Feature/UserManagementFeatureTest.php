@@ -4,19 +4,55 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class UserManagementFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function createAccountId(): int
+    {
+        return (int) DB::table('accounts')->insertGetId([
+            'name' => 'Test Account '.uniqid(),
+            'plan_id' => DB::table('plans')->value('id'),
+            'owner_user_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function makeUserWithAccount(array $attributes = []): User
+    {
+        $accountId = $attributes['account_id'] ?? $this->createAccountId();
+        $role = $attributes['role'] ?? 'operator';
+
+        $user = User::factory()->create(array_merge($attributes, [
+            'account_id' => $accountId,
+            'role' => $role,
+        ]));
+
+        if (in_array($role, ['admin', 'owner'], true)) {
+            DB::table('accounts')->where('id', $accountId)->update(['owner_user_id' => $user->id]);
+            DB::table('account_user')->updateOrInsert(
+                ['account_id' => $accountId, 'user_id' => $user->id],
+                ['role' => $role === 'admin' ? 'owner' : $role, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
+
+        return $user;
+    }
+
     public function test_admin_can_view_users_index(): void
     {
-        $admin = User::factory()->create([
+        $accountId = $this->createAccountId();
+        $admin = $this->makeUserWithAccount([
+            'account_id' => $accountId,
             'role' => 'admin',
         ]);
 
-        User::factory()->create([
+        $this->makeUserWithAccount([
+            'account_id' => $accountId,
             'role' => 'operator',
         ]);
 

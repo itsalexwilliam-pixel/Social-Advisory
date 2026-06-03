@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Contact;
 use App\Models\DripStep;
 use App\Support\EmailHtmlPreprocessor;
+use App\Support\MergeTagReplacer;
 use App\Support\TracksEmailContent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -53,11 +54,7 @@ class DripMail extends Mailable
 
     private function replaceMergeTags(string $text): string
     {
-        return str_replace(
-            ['{{First Name}}', '{{Name}}', '{{Email}}', '{{Business Name}}', '{{Website}}'],
-            [$this->contact->name ?? '', $this->contact->name ?? '', $this->contact->email ?? '', $this->contact->business_name ?? '', $this->contact->website ?? ''],
-            $text
-        );
+        return MergeTagReplacer::replace($text, $this->contact);
     }
 
     private function normalizeForEmailClient(string $html): string

@@ -59,6 +59,10 @@ Route::middleware('auth')->group(function () {
     // Reports - all roles
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/reports/single-email', [ReportsController::class, 'singleEmailReport'])->name('reports.single-email');
+    Route::get('/reports/warmup', [ReportsController::class, 'warmupReport'])->name('reports.warmup');
+    Route::get('/reports/smtp', [ReportsController::class, 'smtpReport'])->name('reports.smtp');
+    Route::get('/reports/live-logs', [ReportsController::class, 'liveLogs'])->name('reports.live-logs');
+    Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
     Route::get('/reports/email/{id}', [ReportsController::class, 'showEmail'])->name('reports.email.show');
     Route::get('/reports/campaign/{campaign_id}', [ReportsController::class, 'campaignDetail'])->name('reports.campaign.detail');
 
@@ -110,8 +114,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/campaigns/{campaign}/duplicate',   [CampaignController::class, 'duplicate'])->name('campaigns.duplicate');
 
         // Import
-        Route::get('/import',  [ImportController::class, 'index'])->name('import.index');
+        Route::get('/import', [ImportController::class, 'index'])->name('import.index');
         Route::post('/import', [ImportController::class, 'store'])->name('import.store');
+        Route::get('/import/runs/{importRun}/progress', [ImportController::class, 'progress'])->name('import.progress');
+        Route::get('/import/runs/{importRun}/status', [ImportController::class, 'status'])->name('import.status');
+        Route::get('/import/runs/{importRun}/result', [ImportController::class, 'result'])->name('import.result.run');
 
         // Templates
         Route::resource('templates', EmailTemplateController::class)->except(['show']);
@@ -121,10 +128,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/smtp',                         [SMTPController::class, 'index'])->name('smtp.index');
         Route::get('/smtp-health',                  [SMTPController::class, 'health'])->name('smtp.health');
         Route::post('/smtp',                        [SMTPController::class, 'store'])->name('smtp.store');
-        Route::delete('/smtp',                      [SMTPController::class, 'destroyAll'])->name('smtp.destroy-all');
         Route::get('/smtp/{smtp}/edit',             [SMTPController::class, 'edit'])->name('smtp.edit');
         Route::put('/smtp/{smtp}',                  [SMTPController::class, 'update'])->name('smtp.update');
         Route::delete('/smtp/{smtp}',               [SMTPController::class, 'destroy'])->name('smtp.destroy');
+        Route::delete('/smtp',                      [SMTPController::class, 'destroyAll'])->name('smtp.destroy-all');
         Route::patch('/smtp/{smtp}/toggle',         [SMTPController::class, 'toggle'])->name('smtp.toggle');
         Route::post('/smtp/{smtp}/test',            [SMTPController::class, 'testConnection'])->middleware('throttle:10,1')->name('smtp.test');
         Route::post('/smtp/{smtp}/send-test-email', [SMTPController::class, 'sendTestEmail'])->middleware('throttle:10,1')->name('smtp.send-test-email');

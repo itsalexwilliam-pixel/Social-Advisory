@@ -17,6 +17,8 @@ class SmtpServer extends Model
         'encryption',
         'from_email',
         'from_name',
+        'reply_to_email',
+        'reply_to_name',
         'is_active',
         'daily_limit',
         'priority',

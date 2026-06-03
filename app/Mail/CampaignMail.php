@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Campaign;
 use App\Models\Contact;
 use App\Support\EmailHtmlPreprocessor;
+use App\Support\MergeTagReplacer;
 use App\Support\TracksEmailContent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -79,15 +80,7 @@ class CampaignMail extends Mailable
 
     private function replaceMergeTags(string $body, Contact $contact): string
     {
-        $tags = [
-            '{{First Name}}'    => $contact->name ?? '',
-            '{{Name}}'          => $contact->name ?? '',
-            '{{Email}}'         => $contact->email ?? '',
-            '{{Business Name}}' => $contact->business_name ?? '',
-            '{{Website}}'       => $contact->website ?? '',
-        ];
-
-        return str_replace(array_keys($tags), array_values($tags), $body);
+        return MergeTagReplacer::replace($body, $contact);
     }
 
     private function normalizeForEmailClient(string $html): string

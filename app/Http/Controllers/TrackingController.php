@@ -68,16 +68,8 @@ class TrackingController extends Controller
         }
 
         $decodedUrl = urldecode($encodedUrl);
-        $decodedUrl = html_entity_decode($decodedUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
         if (!filter_var($decodedUrl, FILTER_VALIDATE_URL)) {
-            // Fallback for links where query encoding was normalized to spaces by some clients/proxies.
-            $normalizedUrl = str_replace(' ', '+', $decodedUrl);
-            if (filter_var($normalizedUrl, FILTER_VALIDATE_URL)) {
-                $decodedUrl = $normalizedUrl;
-            } else {
-                abort(422, 'Invalid url');
-            }
+            abort(422, 'Invalid url');
         }
 
         EmailClick::create([

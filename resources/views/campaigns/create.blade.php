@@ -175,6 +175,9 @@
                     <div id="groupMembersPreview" class="mt-3 rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white/80 dark:bg-slate-900/60 p-3 text-xs text-slate-700 dark:text-slate-200 max-h-48 overflow-auto">
                         Select one or more groups to see member preview.
                     </div>
+                    <p class="mt-2 text-[11px] text-cyan-700 dark:text-cyan-300">
+                        Tip: multiple groups select karne ke liye <strong>Ctrl</strong> (Windows) / <strong>Cmd</strong> (Mac) daba kar click karein.
+                    </p>
                 </div>
 
                 <details class="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
@@ -458,7 +461,6 @@
     const saveCampaignBtn = document.getElementById('saveCampaignBtn');
     const groupSelectionSummary = document.getElementById('groupSelectionSummary');
     const groupMembersPreview = document.getElementById('groupMembersPreview');
-    const contactGroupData = @json($contactGroupData);
 
     previewBtn?.addEventListener('click', function () {
         const html = htmlEditor.classList.contains('hidden') ? quill.root.innerHTML : htmlEditor.value;
@@ -483,9 +485,12 @@
     });
 
     function updateGroupSelectionState() {
-        const selected = groupIdsSelect ? Array.from(groupIdsSelect.selectedOptions) : [];
-        const selectedCount = selected.length;
-        const estimatedRecipients = selected.reduce((sum, opt) => sum + Number(opt.dataset.count || 0), 0);
+        const selectedIds = getSelectedGroupIdsFromSelect();
+        const selectedOptions = groupIdsSelect
+            ? Array.from(groupIdsSelect.options).filter((opt) => selectedIds.includes(String(opt.value)))
+            : [];
+        const selectedCount = selectedOptions.length;
+        const estimatedRecipients = selectedOptions.reduce((sum, opt) => sum + Number(opt.dataset.count || 0), 0);
 
         if (saveCampaignBtn) {
             saveCampaignBtn.disabled = selectedCount === 0;
@@ -506,40 +511,54 @@
         updateGroupMembersPreview();
     }
 
+    function getSelectedGroupIdsFromSelect() {
+        if (!groupIdsSelect) return [];
+        // Some browsers/select UIs can be flaky with selectedOptions during keyboard/mouse combos.
+        // Read selected state directly from all options for reliability.
+        return Array.from(groupIdsSelect.options)
+            .filter((opt) => opt.selected)
+            .map((opt) => String(opt.value));
+    }
+
     function updateGroupMembersPreview() {
         if (!groupMembersPreview || !groupIdsSelect) {
             return;
         }
 
-        const selectedGroupIds = new Set(
-            Array.from(groupIdsSelect.selectedOptions).map((opt) => String(opt.value))
-        );
+        const selectedGroupIds = getSelectedGroupIdsFromSelect();
 
-        if (selectedGroupIds.size === 0) {
+        if (selectedGroupIds.length === 0) {
             groupMembersPreview.textContent = 'Select one or more groups to see member preview.';
             return;
         }
 
-        const memberLines = [];
-        contactGroupData.forEach((contact) => {
-            const isInSelectedGroup = contact.group_ids.some((gid) => selectedGroupIds.has(String(gid)));
-            if (isInSelectedGroup) {
-                memberLines.push(`${contact.name} (${contact.email})`);
-            }
-        });
+        // Reliable preview source: selected <option> labels + contact counts from the select itself.
+        // This avoids mismatch when $groupContacts payload is stale/incomplete.
+        const selectedOptions = Array.from(groupIdsSelect.options).filter((opt) =>
+            selectedGroupIds.includes(String(opt.value))
+        );
 
-        if (memberLines.length === 0) {
+        if (selectedOptions.length === 0) {
             groupMembersPreview.textContent = 'No contacts found in selected groups.';
             return;
         }
 
-        groupMembersPreview.innerHTML = memberLines
-            .map((line) => `<div class="py-0.5">${line}</div>`)
-            .join('');
+        const previewLimit = 200;
+        const visibleOptions = selectedOptions.slice(0, previewLimit);
+
+        groupMembersPreview.innerHTML = `
+            <div class="mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                Selected ${selectedOptions.length} list(s). Recipients will be resolved from these selected lists at send time (deduplicated).
+            </div>
+            ${visibleOptions.map((opt) => `<div class="py-0.5">${opt.textContent.trim()}</div>`).join('')}
+        `;
     }
 
     groupIdsSelect?.addEventListener('change', updateGroupSelectionState);
     groupIdsSelect?.addEventListener('input', updateGroupSelectionState);
+    groupIdsSelect?.addEventListener('click', updateGroupSelectionState);
+    groupIdsSelect?.addEventListener('keyup', updateGroupSelectionState);
+    document.addEventListener('DOMContentLoaded', updateGroupSelectionState);
     updateGroupSelectionState();
 
     // ── A/B Variant B Editor ─────────────────────────────────────────────────

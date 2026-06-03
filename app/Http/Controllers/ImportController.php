@@ -2,23 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Contact;
+use App\Jobs\ProcessImportJob;
 use App\Models\Group;
+use App\Models\ImportRun;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class ImportController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $groups = Group::orderBy('name')->get();
+        $accountId = (int) ($request->user()?->account_id ?? 0);
+        $groups = Group::where('account_id', $accountId)->orderBy('name')->get();
+
         return view('import.index', compact('groups'));
     }
 
     public function store(Request $request)
     {
+        $accountId = (int) ($request->user()?->account_id ?? 0);
+
         $request->validate([
-            'csv_file'             => ['required', 'file'],
+            'csv_file'             => ['required', 'file', 'mimes:csv,txt'],
             'name_column'          => ['nullable', 'string'],
             'first_name_column'    => ['nullable', 'string'],
             'last_name_column'     => ['nullable', 'string'],
@@ -26,143 +31,78 @@ class ImportController extends Controller
             'business_name_column' => ['nullable', 'string'],
             'website_column'       => ['nullable', 'string'],
             'groups'               => ['nullable', 'array'],
-            'groups.*'             => ['exists:groups,id'],
+            'groups.*'             => ['integer', 'exists:groups,id'],
         ]);
 
-        $path = $request->file('csv_file')->getRealPath();
-        $handle = fopen($path, 'r');
+        $storedPath = $request->file('csv_file')->store('imports');
 
-        $headers = fgetcsv($handle);
-        if (!$headers) {
-            fclose($handle);
-            return back()->withErrors(['csv_file' => 'CSV file appears to be empty.'])->withInput();
-        }
+        $importRun = ImportRun::create([
+            'account_id' => $accountId,
+            'user_id' => $request->user()?->id,
+            'status' => 'queued',
+            'original_filename' => $request->file('csv_file')->getClientOriginalName(),
+            'stored_path' => $storedPath,
+            'name_column' => trim((string) $request->name_column),
+            'first_name_column' => trim((string) $request->first_name_column),
+            'last_name_column' => trim((string) $request->last_name_column),
+            'email_column' => trim((string) $request->email_column),
+            'business_name_column' => trim((string) $request->business_name_column),
+            'website_column' => trim((string) $request->website_column),
+            'group_ids' => array_values(array_map('intval', $request->groups ?? [])),
+        ]);
 
-        // Strip BOM and whitespace from headers
-        $headers[0] = ltrim($headers[0], "\xEF\xBB\xBF");
-        $headers = array_map('trim', $headers);
+        ProcessImportJob::dispatch($importRun->id);
 
-        $nameCol          = trim((string) $request->name_column);
-        $firstNameCol     = trim((string) $request->first_name_column);
-        $lastNameCol      = trim((string) $request->last_name_column);
-        $emailCol         = trim((string) $request->email_column);
-        $businessNameCol  = trim((string) $request->business_name_column);
-        $websiteCol       = trim((string) $request->website_column);
+        return redirect()
+            ->route('import.progress', $importRun)
+            ->with('success', 'Import started. Processing in background.');
+    }
 
-        // Resolve name strategy: single column OR first+last
-        $nameIndex      = $nameCol !== '' ? array_search($nameCol, $headers, true) : false;
-        $firstNameIndex = $firstNameCol !== '' ? array_search($firstNameCol, $headers, true) : false;
-        $lastNameIndex  = $lastNameCol !== '' ? array_search($lastNameCol, $headers, true) : false;
+    public function progress(Request $request, ImportRun $importRun)
+    {
+        $this->authorizeImportRun($request, $importRun);
 
-        $emailIndex        = array_search($emailCol, $headers, true);
-        $businessNameIndex = $businessNameCol !== '' ? array_search($businessNameCol, $headers, true) : false;
-        $websiteIndex      = $websiteCol !== '' ? array_search($websiteCol, $headers, true) : false;
+        return view('import.progress', compact('importRun'));
+    }
 
-        // Must have either a name column OR at least first_name column
-        $hasName      = $nameIndex !== false;
-        $hasFirstName = $firstNameIndex !== false;
+    public function status(Request $request, ImportRun $importRun): JsonResponse
+    {
+        $this->authorizeImportRun($request, $importRun);
 
-        if (!$hasName && !$hasFirstName) {
-            fclose($handle);
-            return back()->withErrors(['csv_file' => 'No name column found in CSV. Headers detected: ' . implode(', ', $headers)])->withInput();
-        }
+        $importRun->refresh();
 
-        if ($emailIndex === false) {
-            fclose($handle);
-            return back()->withErrors(['csv_file' => 'Email column not found in CSV. Headers detected: ' . implode(', ', $headers)])->withInput();
-        }
+        return response()->json([
+            'id' => $importRun->id,
+            'status' => $importRun->status,
+            'total' => (int) $importRun->total_rows,
+            'processed' => (int) $importRun->processed_rows,
+            'imported' => (int) $importRun->imported_rows,
+            'skipped' => (int) $importRun->skipped_rows,
+            'remaining' => max(0, (int) $importRun->total_rows - (int) $importRun->processed_rows),
+            'progress_percent' => $importRun->progressPercent(),
+            'error_message' => $importRun->error_message,
+            'finished' => $importRun->isFinished(),
+            'result_url' => route('import.result.run', $importRun),
+        ]);
+    }
 
-        $accountId = (int) ($request->user()?->account_id ?? 0);
-        $total = 0;
-        $imported = 0;
-        $skipped = 0;
-        $fileEmails = [];
-        $failedRows = [];   // [['row' => N, 'email' => '...', 'name' => '...', 'reasons' => [...]]]
-        $rowNumber = 1;     // 1-based, header is row 0
-
-        while (($row = fgetcsv($handle)) !== false) {
-            // Skip blank rows
-            if (count(array_filter($row, fn($v) => trim($v) !== '')) === 0) {
-                continue;
-            }
-
-            $rowNumber++;
-            $total++;
-            $reasons = [];
-
-            // Build name from single column or first+last
-            if ($hasName) {
-                $name = trim((string)($row[$nameIndex] ?? ''));
-            } else {
-                $firstName = trim((string)($row[$firstNameIndex] ?? ''));
-                $lastName  = $lastNameIndex !== false ? trim((string)($row[$lastNameIndex] ?? '')) : '';
-                $name      = trim($firstName . ' ' . $lastName);
-            }
-
-            $email        = strtolower(trim((string)($row[$emailIndex] ?? '')));
-            $businessName = $businessNameIndex !== false ? trim((string)($row[$businessNameIndex] ?? '')) : null;
-            $website      = $websiteIndex !== false ? trim((string)($row[$websiteIndex] ?? '')) : null;
-
-            // Add https:// if website has no scheme
-            if ($website && !preg_match('/^https?:\/\//i', $website)) {
-                $website = 'https://' . $website;
-            }
-
-            $validator = Validator::make(
-                ['name' => $name, 'email' => $email, 'website' => $website ?: null],
-                [
-                    'name'    => ['required', 'string', 'max:255'],
-                    'email'   => ['required', 'email', 'max:255'],
-                    'website' => ['nullable', 'url', 'max:255'],
-                ]
-            );
-
-            if ($validator->fails()) {
-                foreach ($validator->errors()->all() as $msg) {
-                    $reasons[] = $msg;
-                }
-            }
-
-            if ($email !== '' && in_array($email, $fileEmails, true)) {
-                $reasons[] = 'Duplicate email in this file';
-            }
-
-            if ($email !== '' && empty($reasons) && Contact::where('email', $email)->exists()) {
-                $reasons[] = 'Email already exists in contacts';
-            }
-
-            if (!empty($reasons)) {
-                $skipped++;
-                $failedRows[] = [
-                    'row'     => $rowNumber,
-                    'name'    => $name !== '' ? $name : '—',
-                    'email'   => $email !== '' ? $email : '—',
-                    'reasons' => $reasons,
-                ];
-                continue;
-            }
-
-            $contact = Contact::create([
-                'account_id'    => $accountId,
-                'name'          => $name,
-                'business_name' => $businessName ?: null,
-                'email'         => $email,
-                'website'       => $website ?: null,
-            ]);
-
-            $contact->groups()->sync($request->groups ?? []);
-
-            $fileEmails[] = $email;
-            $imported++;
-        }
-
-        fclose($handle);
+    public function result(Request $request, ImportRun $importRun)
+    {
+        $this->authorizeImportRun($request, $importRun);
 
         return view('import.result', [
-            'total'      => $total,
-            'imported'   => $imported,
-            'skipped'    => $skipped,
-            'failedRows' => $failedRows,
+            'total' => (int) $importRun->total_rows,
+            'imported' => (int) $importRun->imported_rows,
+            'skipped' => (int) $importRun->skipped_rows,
+            'failedRows' => $importRun->failed_rows ?? [],
         ]);
+    }
+
+    private function authorizeImportRun(Request $request, ImportRun $importRun): void
+    {
+        $accountId = (int) ($request->user()?->account_id ?? 0);
+        if ((int) $importRun->account_id !== $accountId) {
+            abort(403);
+        }
     }
 }

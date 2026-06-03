@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ config('app.name', 'Social Security Administration') }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/favicon.png') }}">
     <style>
         /* ── Theme: Light (default) ────────────────────────────── */
         body.theme-light { --accent: #4f46e5; --accent-hover: #4338ca; }

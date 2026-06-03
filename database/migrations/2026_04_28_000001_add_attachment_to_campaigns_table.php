@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('campaigns', function (Blueprint $table) {
             if (! Schema::hasColumn('campaigns', 'attachment_path')) {
-                $table->string('attachment_path')->nullable()->after('content');
+                $table->string('attachment_path')->nullable()->after('body');
             }
             if (! Schema::hasColumn('campaigns', 'attachment_name')) {
                 $table->string('attachment_name')->nullable()->after('attachment_path');

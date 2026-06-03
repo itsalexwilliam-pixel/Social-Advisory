@@ -2,7 +2,9 @@
 
 namespace App\Mail;
 
+use App\Models\Contact;
 use App\Models\EmailQueue;
+use App\Support\MergeTagReplacer;
 use App\Support\TracksEmailContent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -31,13 +33,14 @@ class SingleEmailMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->subjectLine,
+            subject: $this->replaceMergeTags($this->subjectLine),
         );
     }
 
     public function build(): static
     {
-        $normalizedHtml = $this->normalizeForEmailClient($this->htmlBody);
+        $resolvedBody = $this->replaceMergeTags($this->htmlBody);
+        $normalizedHtml = $this->normalizeForEmailClient($resolvedBody);
         $inlineReadyHtml = $this->inlineCssForEmailClients($normalizedHtml);
 
         $trackedHtml = $this->buildTrackedHtml(
@@ -55,8 +58,26 @@ class SingleEmailMail extends Mailable
         );
 
         return $this
-            ->subject($this->subjectLine)
+            ->subject($this->replaceMergeTags($this->subjectLine))
             ->html($trackedHtml);
+    }
+
+    private function replaceMergeTags(string $text): string
+    {
+        return MergeTagReplacer::replace($text, $this->resolveContact());
+    }
+
+    private function resolveContact(): ?Contact
+    {
+        if (!empty($this->queueItem->contact_id)) {
+            return Contact::find($this->queueItem->contact_id);
+        }
+
+        if (!empty($this->queueItem->email)) {
+            return Contact::where('email', $this->queueItem->email)->first();
+        }
+
+        return null;
     }
 
     private function normalizeForEmailClient(string $html): string

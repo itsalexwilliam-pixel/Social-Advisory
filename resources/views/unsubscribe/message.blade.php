@@ -88,7 +88,8 @@
         <p>{{ $message }}</p>
 
         <p class="brand">
-            &copy; {{ date('Y') }} <strong>{{ config('app.name', 'Social Security Administration') }}</strong>. All rights reserved.
+            &copy; {{ date('Y') }} <strong>{{ config('app.name', 'Social Security Administration') }}</strong><br>
+            6401 Security Blvd, Baltimore, MD 21235, United States
         </p>
     </div>
 </body>

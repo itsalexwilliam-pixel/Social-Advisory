@@ -100,7 +100,7 @@
 
             <div class="flex items-center gap-3">
                 <button id="importSubmitBtn" type="submit" class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition">
-                    Import
+                    Start Import
                 </button>
                 <a href="{{ route('contacts.index') }}"
                    class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition">
@@ -128,6 +128,18 @@
         }
     }
 
+    const importForm = document.querySelector('form[action="{{ route('import.store') }}"]');
+    const importSubmitBtn = document.getElementById('importSubmitBtn');
+
     groupsSelect?.addEventListener('change', refreshGroupHint);
+    refreshGroupHint();
+
+    importForm?.addEventListener('submit', function () {
+        if (importSubmitBtn) {
+            importSubmitBtn.disabled = true;
+            importSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            importSubmitBtn.textContent = 'Uploading…';
+        }
+    });
 </script>
 @endpush

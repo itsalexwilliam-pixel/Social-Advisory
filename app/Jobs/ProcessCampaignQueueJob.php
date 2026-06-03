@@ -27,9 +27,7 @@ class ProcessCampaignQueueJob implements ShouldQueue
     {
         $lockKey = "campaign_queue_worker_running_{$this->campaignId}";
 
-        // If already running, extend lock briefly and exit (existing worker will continue processing).
-        if (!Cache::add($lockKey, 1, now()->addMinutes(10))) {
-            Cache::put($lockKey, 1, now()->addMinutes(10));
+        if (!Cache::add($lockKey, 1, now()->addMinutes(2))) {
             return;
         }
 

@@ -3,17 +3,11 @@
 @section('page_title', 'SMTP / Sending')
 
 @section('content')
-@php
-    $totalServers = $totalServers ?? $servers->total();
-    $activeServers = $activeServers ?? $servers->where('is_active', 1)->count();
-    $inactiveServers = $inactiveServers ?? max($totalServers - $activeServers, 0);
-@endphp
-
 <div class="space-y-6">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <x-saas-stat-card title="Total Servers" :value="$totalServers" />
-        <x-saas-stat-card title="Active" :value="$activeServers" />
-        <x-saas-stat-card title="Inactive" :value="$inactiveServers" />
+        <x-saas-stat-card title="Total Servers" :value="$totalServers ?? 0" />
+        <x-saas-stat-card title="Active" :value="$activeServers ?? 0" />
+        <x-saas-stat-card title="Inactive" :value="$inactiveServers ?? 0" />
     </div>
 
     @if(session('success'))
@@ -34,17 +28,17 @@
     @endif
 
     <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-        <div class="flex items-center justify-between mb-4 gap-3">
+        <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Add SMTP Server</h2>
-
-            <form method="POST" action="{{ route('smtp.destroy-all') }}"
-                  onsubmit="return confirm('Delete ALL SMTP servers for this account? This action cannot be undone.')">
-                @csrf
-                @method('DELETE')
-                <button class="inline-flex items-center px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition">
-                    Delete All SMTP
-                </button>
-            </form>
+            @if($totalServers > 0)
+                <form method="POST" action="{{ route('smtp.destroy-all') }}" onsubmit="return confirm('Delete ALL SMTP servers for this account? This action cannot be undone.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="inline-flex items-center px-4 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition">
+                        Delete All SMTP
+                    </button>
+                </form>
+            @endif
         </div>
 
         <form method="POST" action="{{ route('smtp.store') }}" class="space-y-4">
@@ -113,6 +107,18 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Reply-To Name (optional)</label>
+                    <input type="text" name="reply_to_name" value="{{ old('reply_to_name') }}" class="w-full rounded-xl border @error('reply_to_name') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
+                    @error('reply_to_name')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Reply-To Email (optional)</label>
+                    <input type="email" name="reply_to_email" value="{{ old('reply_to_email') }}" class="w-full rounded-xl border @error('reply_to_email') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
+                    @error('reply_to_email')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
                     <label class="block text-sm mb-1 text-slate-700 dark:text-slate-300">Daily Limit (optional)</label>
                     <input type="number" name="daily_limit" min="1" value="{{ old('daily_limit') }}" class="w-full rounded-xl border @error('daily_limit') border-rose-400 @else border-slate-300 dark:border-slate-700 @enderror bg-white dark:bg-slate-950 px-3 py-2.5 text-sm">
                     @error('daily_limit')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
@@ -142,6 +148,8 @@
         </form>
         <p class="text-xs text-slate-500 mt-2">
             Required headers: label,host,port,username,password,encryption,from_email,from_name
+            <br>
+            Optional headers: reply_to_email,reply_to_name
         </p>
 
         @if(session()->has('smtp_bulk_success_count') || session()->has('smtp_bulk_failed_rows'))

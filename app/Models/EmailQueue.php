@@ -18,6 +18,7 @@ class EmailQueue extends Model
         'ab_variant',
         'subject',
         'body',
+        'body_snapshot',
         'from_email',
         'from_name',
         'utm_source',
