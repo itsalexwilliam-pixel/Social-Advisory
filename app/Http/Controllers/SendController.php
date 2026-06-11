@@ -10,7 +10,11 @@ class SendController extends Controller
 {
     public function sendNow(Campaign $campaign)
     {
-        $accountId = (int) ($campaign->account_id ?? auth()->user()?->account_id ?? 0);
+        // Bug fix: verify the authenticated user's account owns this campaign.
+        // Without this, any role:manager user could trigger sends for campaigns
+        // belonging to other accounts by guessing/knowing their campaign IDs.
+        $accountId = $this->currentAccountId();
+        abort_if((int) $campaign->account_id !== $accountId, 403);
         $contacts = $campaign->contacts()->get(['contacts.id', 'contacts.email']);
 
         // A/B split: sort by contact ID for deterministic assignment, then split 50/50
@@ -107,6 +111,9 @@ class SendController extends Controller
 
     public function pause(Campaign $campaign)
     {
+        // Bug fix: enforce account ownership before allowing pause.
+        abort_if((int) $campaign->account_id !== $this->currentAccountId(), 403);
+
         if ($campaign->status !== 'sending') {
             return redirect()->route('campaigns.index')->withErrors([
                 'campaign_pause' => 'Only sending campaigns can be paused.',
@@ -120,6 +127,9 @@ class SendController extends Controller
 
     public function resume(Campaign $campaign)
     {
+        // Bug fix: enforce account ownership before allowing resume.
+        abort_if((int) $campaign->account_id !== $this->currentAccountId(), 403);
+
         $hasSendableQueue = EmailQueue::where('campaign_id', $campaign->id)
             ->where(function ($query) {
                 $query->where('status', 'pending')

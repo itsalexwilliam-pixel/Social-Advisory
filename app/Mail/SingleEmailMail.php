@@ -9,6 +9,7 @@ use App\Support\TracksEmailContent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
+use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
@@ -37,10 +38,16 @@ class SingleEmailMail extends Mailable
         );
     }
 
-    public function build(): static
+    /**
+     * Bug fix: the old build() method was defined alongside envelope(), causing
+     * a conflict — both set the subject, and build() is the deprecated API.
+     * Migrated to the new content() API (matching CampaignMail and DripMail)
+     * so envelope/content/attachments is the single source of truth.
+     */
+    public function content(): Content
     {
-        $resolvedBody = $this->replaceMergeTags($this->htmlBody);
-        $normalizedHtml = $this->normalizeForEmailClient($resolvedBody);
+        $resolvedBody    = $this->replaceMergeTags($this->htmlBody);
+        $normalizedHtml  = $this->normalizeForEmailClient($resolvedBody);
         $inlineReadyHtml = $this->inlineCssForEmailClients($normalizedHtml);
 
         $trackedHtml = $this->buildTrackedHtml(
@@ -49,17 +56,15 @@ class SingleEmailMail extends Mailable
             true,
             $this->queueItem->email,
             [
-                'utm_source' => $this->queueItem->utm_source,
-                'utm_medium' => $this->queueItem->utm_medium,
+                'utm_source'   => $this->queueItem->utm_source,
+                'utm_medium'   => $this->queueItem->utm_medium,
                 'utm_campaign' => $this->queueItem->utm_campaign,
-                'utm_term' => $this->queueItem->utm_term,
-                'utm_content' => $this->queueItem->utm_content,
+                'utm_term'     => $this->queueItem->utm_term,
+                'utm_content'  => $this->queueItem->utm_content,
             ]
         );
 
-        return $this
-            ->subject($this->replaceMergeTags($this->subjectLine))
-            ->html($trackedHtml);
+        return new Content(htmlString: $trackedHtml);
     }
 
     private function replaceMergeTags(string $text): string
@@ -107,11 +112,10 @@ class SingleEmailMail extends Mailable
 
         try {
             $sanitized = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html) ?? $html;
-            $inliner = new CssToInlineStyles();
-            $inlined = $inliner->convert($sanitized);
-            $inlined = $this->sanitizeUnsupportedInlineCss($inlined);
+            $inliner   = new CssToInlineStyles();
+            $inlined   = $inliner->convert($sanitized);
+            $inlined   = $this->sanitizeUnsupportedInlineCss($inlined);
 
-            // Basic fallbacks for clients that ignore class-based layout/CSS variables.
             $inlined = preg_replace(
                 '/<body([^>]*)>/i',
                 '<body$1 style="margin:0;padding:24px 14px 60px;background:#F5F2F8;color:#18182A;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">',

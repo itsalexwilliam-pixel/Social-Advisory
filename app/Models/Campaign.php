@@ -29,17 +29,22 @@ class Campaign extends Model
         'warmup_day',
         'warmup_started_at',
         'emails_per_minute',
+        // Bug fix: email_gap_seconds existed in the migration but was missing
+        // from $fillable and $casts, making it impossible to persist via
+        // mass-assignment and causing the worker to never read it.
+        'email_gap_seconds',
         'ab_enabled',
         'ab_subject_b',
         'ab_body_b',
     ];
 
     protected $casts = [
-        'scheduled_at' => 'datetime',
-        'warmup_enabled' => 'boolean',
+        'scheduled_at'      => 'datetime',
+        'warmup_enabled'    => 'boolean',
         'warmup_started_at' => 'datetime',
         'emails_per_minute' => 'integer',
-        'ab_enabled' => 'boolean',
+        'email_gap_seconds' => 'integer',
+        'ab_enabled'        => 'boolean',
     ];
 
     public function contacts(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

@@ -364,6 +364,10 @@ class CampaignController extends Controller
                 'mail.from.name' => $smtp->from_name,
             ]);
 
+            // Bug fix: clear the Mail facade's cached mailer so the config
+            // above is applied for this send (otherwise stale transport reused).
+            Mail::forgetMailers();
+
             $mergePlaceholders = [
                 '{{First Name}}', '{{Name}}', '{{Email}}', '{{Business Name}}', '{{Website}}'
             ];

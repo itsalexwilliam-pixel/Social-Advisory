@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class WorkMailsQueueCommand extends Command
@@ -109,6 +110,9 @@ class WorkMailsQueueCommand extends Command
                 $processedPerCampaign[$campaignId] = ($processedPerCampaign[$campaignId] ?? 0) + 1;
 
                 $this->throttleByRate($windowStartedAt, $processedPerCampaign[$campaignId], $campaignRunCaps[$campaignId]);
+                // Bug fix: email_gap_seconds was in the DB/migration but never
+                // applied — add the fixed per-email pause after a successful send.
+                $this->applyEmailGap($item->campaign, $sent);
 
                 if (!$sent) {
                     continue;
@@ -135,11 +139,12 @@ class WorkMailsQueueCommand extends Command
                     $item = $bucket[$idx];
                     $cursorByCampaign[$campaignId] = $idx + 1;
 
-                    $this->processQueueItem($item);
+                    $sent = $this->processQueueItem($item);
                     $processed++;
                     $processedPerCampaign[$campaignId] = ($processedPerCampaign[$campaignId] ?? 0) + 1;
 
                     $this->throttleByRate($windowStartedAt, $processedPerCampaign[$campaignId], $campaignRunCaps[$campaignId]);
+                    $this->applyEmailGap($item->campaign, $sent);
                 }
             }
         }
@@ -235,6 +240,25 @@ class WorkMailsQueueCommand extends Command
         }
     }
 
+    /**
+     * Bug fix: email_gap_seconds was added to the campaigns table migration but
+     * was never read or applied — this method enforces the fixed per-email pause.
+     * Only fires after a successful send so skipped/failed emails don't burn
+     * the gap unnecessarily.
+     */
+    private function applyEmailGap(?Campaign $campaign, bool $sent): void
+    {
+        if (!$sent || is_null($campaign)) {
+            return;
+        }
+
+        $gapSeconds = (int) ($campaign->email_gap_seconds ?? 0);
+
+        if ($gapSeconds > 0) {
+            sleep($gapSeconds);
+        }
+    }
+
     private function processQueueItem(EmailQueue $item): bool
     {
         $this->line("Processing queue #{$item->id} | campaign #{$item->campaign_id} | {$item->email} | status={$item->status} attempts={$item->attempts}");
@@ -312,6 +336,7 @@ class WorkMailsQueueCommand extends Command
             if (!is_null($smtp->daily_limit)) {
                 $todaySentCount = SmtpServerUsage::query()
                     ->where('smtp_server_id', $smtp->id)
+                    ->where('account_id', $accountId)
                     ->where('usage_date', $today)
                     ->value('sent_count') ?? 0;
 
@@ -336,9 +361,60 @@ class WorkMailsQueueCommand extends Command
                 'mail.from.name' => $smtp->from_name,
             ]);
 
+            // Step 1: attempt the send — isolated so usage tracking can never
+            // corrupt the send result.
+            $sendSucceeded = false;
+
             try {
+                // Purge the cached mailer so Laravel rebuilds the SMTP transport
+                // using the config values set above. Without this, the Mail facade
+                // reuses the first-resolved connection for every email, making
+                // round-robin completely ineffective at the transport level.
+                Mail::forgetMailers();
+
                 Mail::to($item->email)->send(new CampaignMail($item->campaign, $item->contact, $item->id, $item->ab_variant));
 
+                $sendSucceeded = true;
+            } catch (\Throwable $e) {
+                $lastError = $e->getMessage();
+                $this->warn("SMTP #{$smtp->id} failed for {$item->email}: {$lastError}");
+            }
+
+            // Step 2: record usage — in its own try/catch so a DB hiccup here
+            // never flips a successfully-sent item back to 'failed'.
+            $smtp->update(['last_used_at' => Carbon::now()]);
+
+            try {
+                DB::transaction(function () use ($smtp, $today, $accountId, $sendSucceeded) {
+                    $usage = SmtpServerUsage::query()
+                        ->where('smtp_server_id', $smtp->id)
+                        ->where('account_id', $accountId)
+                        ->where('usage_date', $today)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$usage) {
+                        $usage = SmtpServerUsage::query()->create([
+                            'smtp_server_id' => $smtp->id,
+                            'usage_date'     => $today,
+                            'account_id'     => $accountId,
+                            'sent_count'     => 0,
+                            'fail_count'     => 0,
+                        ]);
+                    }
+
+                    if ($sendSucceeded) {
+                        $usage->increment('sent_count');
+                    } else {
+                        $usage->increment('fail_count');
+                    }
+                });
+            } catch (\Throwable $usageEx) {
+                $this->warn("Usage tracking failed for SMTP #{$smtp->id}: " . $usageEx->getMessage());
+            }
+
+            // Step 3: finalise based on send result.
+            if ($sendSucceeded) {
                 $item->update([
                     'status'         => 'sent',
                     'sent_at'        => Carbon::now(),
@@ -348,64 +424,10 @@ class WorkMailsQueueCommand extends Command
                     'from_name'      => $smtp->from_name,
                 ]);
 
-                $smtp->update(['last_used_at' => Carbon::now()]);
-
-                $usage = SmtpServerUsage::query()
-                    ->where('smtp_server_id', $smtp->id)
-                    ->whereDate('usage_date', $today)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$usage) {
-                    $usage = SmtpServerUsage::query()->create([
-                        'smtp_server_id' => $smtp->id,
-                        'usage_date' => $today,
-                        'account_id' => $accountId,
-                        'sent_count' => 0,
-                        'fail_count' => 0,
-                    ]);
-                }
-
-                if ((int) $usage->account_id !== $accountId) {
-                    $usage->account_id = $accountId;
-                    $usage->save();
-                }
-
-                $usage->increment('sent_count');
-
                 $this->advanceRoundRobinPointer($accountId, (int) $smtp->id);
-
                 $this->info("Sent successfully: {$item->email}");
                 $sent = true;
                 break;
-            } catch (\Throwable $e) {
-                $lastError = $e->getMessage();
-                $smtp->update(['last_used_at' => Carbon::now()]);
-
-                $usage = SmtpServerUsage::query()
-                    ->where('smtp_server_id', $smtp->id)
-                    ->whereDate('usage_date', $today)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$usage) {
-                    $usage = SmtpServerUsage::query()->create([
-                        'smtp_server_id' => $smtp->id,
-                        'usage_date' => $today,
-                        'account_id' => $accountId,
-                        'sent_count' => 0,
-                        'fail_count' => 0,
-                    ]);
-                }
-
-                if ((int) $usage->account_id !== $accountId) {
-                    $usage->account_id = $accountId;
-                    $usage->save();
-                }
-
-                $usage->increment('fail_count');
-
-                $this->warn("SMTP #{$smtp->id} failed for {$item->email}: {$lastError}");
             }
         }
 

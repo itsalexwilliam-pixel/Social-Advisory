@@ -458,17 +458,26 @@ class SMTPController extends Controller
     private function applySmtpConfig(SmtpServer $smtp): void
     {
         config([
-            'mail.default' => 'smtp',
-            'mail.mailers.smtp.host' => $smtp->host,
-            'mail.mailers.smtp.port' => $smtp->port,
-            'mail.mailers.smtp.username' => $smtp->username,
-            'mail.mailers.smtp.password' => $smtp->password,
+            'mail.default'                 => 'smtp',
+            // Bug fix: 'transport' key was missing — without it the Symfony
+            // TransportFactory cannot identify the driver and may reuse whatever
+            // transport was previously cached by the Mail facade.
+            'mail.mailers.smtp.transport'  => 'smtp',
+            'mail.mailers.smtp.host'       => $smtp->host,
+            'mail.mailers.smtp.port'       => $smtp->port,
+            'mail.mailers.smtp.username'   => $smtp->username,
+            'mail.mailers.smtp.password'   => $smtp->password,
             'mail.mailers.smtp.encryption' => $smtp->encryption === 'none' ? null : $smtp->encryption,
-            'mail.mailers.smtp.timeout' => 8,
-            'mail.from.address' => $smtp->from_email,
-            'mail.from.name' => $smtp->from_name,
-            'mail.reply_to.address' => $smtp->reply_to_email ?: $smtp->from_email,
-            'mail.reply_to.name' => $smtp->reply_to_name ?: $smtp->from_name,
+            'mail.mailers.smtp.timeout'    => 8,
+            'mail.from.address'            => $smtp->from_email,
+            'mail.from.name'               => $smtp->from_name,
+            'mail.reply_to.address'        => $smtp->reply_to_email ?: $smtp->from_email,
+            'mail.reply_to.name'           => $smtp->reply_to_name ?: $smtp->from_name,
         ]);
+
+        // Bug fix: clear the Mail facade's cached mailer so the new config
+        // above is actually used for the next send (otherwise the first-resolved
+        // transport is reused and config changes are silently ignored).
+        Mail::forgetMailers();
     }
 }

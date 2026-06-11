@@ -139,6 +139,10 @@ class SingleEmailController extends Controller
         try {
             $this->applySmtpConfig($smtp, $data['from_email'] ?? null, $data['from_name'] ?? null);
 
+            // Bug fix: clear the Mail facade's cached mailer so the config set
+            // above is actually used (otherwise a stale transport is reused).
+            Mail::forgetMailers();
+
             Log::info('SingleEmail HTML Preview', [
                 'has_template_html' => $hasTemplateHtml,
                 'sample' => substr($processedMessage, 0, 500),
